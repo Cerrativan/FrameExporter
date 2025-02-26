@@ -4,8 +4,10 @@ import android.net.Uri
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts.*
-import androidx.compose.foundation.clickable
+import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,10 +26,16 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -78,7 +86,7 @@ fun FrameExporterScreen(
     onExportSelected: (List<File>) -> Unit
 ) {
 
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         when (state) {
             is FrameExporterState.ExtractionSuccess -> {
                 ExportingScreen(
@@ -161,6 +169,7 @@ fun MessageDialog(message: String, modifier: Modifier, onDismiss: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExportingScreen(
     state: FrameExporterState.ExtractionSuccess,
@@ -171,39 +180,56 @@ fun ExportingScreen(
 ) {
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Text(text = "Choose frames to extract", style = TextStyle(fontSize = 32.sp))
+        Text(text = "Choose frames to extract", style = TextStyle(fontSize = 32.sp), modifier = Modifier.padding(8.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Button(onClick = {
                 onClear()
             }) {
                 Text(text = "Clear")
             }
+            if (state.selected.isNotEmpty())
+                Button(onClick = {
+                    onExportSelected(state.selected)
+                }) {
+                    Text(text = "Export selected(${state.selected.size})")
+                }
             Button(onClick = {
                 onExportAll(state.framesList)
             }) {
                 Text(text = "Export All")
             }
-            Button(onClick = {
-                onExportSelected(state.selected)
-            }) {
-                Text(text = "Export selected(${state.selected.size})")
-            }
         }
         LazyVerticalGrid(columns = GridCells.Fixed(3)) {
             items(state.framesList) {
                 val selected = it in state.selected
+                var isEnabled by remember { mutableStateOf(false) }
+                if (isEnabled) {
+                    Dialog(onDismissRequest = { isEnabled = !isEnabled }) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = it.absolutePath.toUri(),
+                                null,
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                }
                 Box() {
                     AsyncImage(
                         model = it.absolutePath.toUri(),
                         contentDescription = null,
-                        modifier = Modifier.clickable {
-                            onSelectedFrame(it)
-                        }
+                        modifier = Modifier.combinedClickable(
+                            onLongClick = { isEnabled = !isEnabled },
+                            onClick = { onSelectedFrame(it) }
+                        )
                     )
                     if (selected) {
                         Checkbox(checked = true, onCheckedChange = null)
